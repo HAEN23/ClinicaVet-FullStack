@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client"
+ 
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model alertas {
+  id          Int       @id @default(autoincrement())
+  tipo        String    @db.VarChar(30)
+  descripcion String?
+  fecha       DateTime? @default(now()) @db.Timestamp(6)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model citas {
+  id             Int          @id @default(autoincrement())
+  mascota_id     Int
+  veterinario_id Int
+  fecha_hora     DateTime     @db.Timestamp(6)
+  motivo         String?
+  costo          Decimal?     @db.Decimal(10, 2)
+  estado         String?      @default("AGENDADA") @db.VarChar(20)
+  mascotas       mascotas     @relation(fields: [mascota_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  veterinarios   veterinarios @relation(fields: [veterinario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model duenos {
+  id       Int        @id @default(autoincrement())
+  nombre   String     @db.VarChar(100)
+  telefono String?    @db.VarChar(20)
+  email    String?    @db.VarChar(100)
+  mascotas mascotas[]
+}
+
+model historial_movimientos {
+  id            Int       @id @default(autoincrement())
+  tipo          String    @db.VarChar(30)
+  referencia_id Int?
+  descripcion   String?
+  fecha         DateTime? @default(now()) @db.Timestamp(6)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model inventario_vacunas {
+  id                Int                 @id @default(autoincrement())
+  nombre            String              @db.VarChar(80)
+  stock_actual      Int                 @default(0)
+  stock_minimo      Int                 @default(5)
+  costo_unitario    Decimal             @db.Decimal(10, 2)
+  vacunas_aplicadas vacunas_aplicadas[]
+}
+
+model mascotas {
+  id                  Int                   @id @default(autoincrement())
+  nombre              String                @db.VarChar(50)
+  especie             String                @db.VarChar(30)
+  fecha_nacimiento    DateTime?             @db.Date
+  dueno_id            Int
+  citas               citas[]
+  duenos              duenos                @relation(fields: [dueno_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  vacunas_aplicadas   vacunas_aplicadas[]
+  vet_atiende_mascota vet_atiende_mascota[]
+}
+
+model vacunas_aplicadas {
+  id                 Int                @id @default(autoincrement())
+  mascota_id         Int
+  vacuna_id          Int
+  veterinario_id     Int
+  fecha_aplicacion   DateTime           @default(dbgenerated("CURRENT_DATE")) @db.Date
+  costo_cobrado      Decimal?           @db.Decimal(10, 2)
+  mascotas           mascotas           @relation(fields: [mascota_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  inventario_vacunas inventario_vacunas @relation(fields: [vacuna_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  veterinarios       veterinarios       @relation(fields: [veterinario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model vet_atiende_mascota {
+  id                    Int          @id @default(autoincrement())
+  vet_id                Int
+  mascota_id            Int
+  fecha_inicio_atencion DateTime     @default(dbgenerated("CURRENT_DATE")) @db.Date
+  activa                Boolean?     @default(true)
+  mascotas              mascotas     @relation(fields: [mascota_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  veterinarios          veterinarios @relation(fields: [vet_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([vet_id, mascota_id])
+  @@index([mascota_id], map: "idx_vam_mascota")
+  @@index([vet_id], map: "idx_vam_vet")
+}
+
+model veterinarios {
+  id                  Int                   @id @default(autoincrement())
+  nombre              String                @db.VarChar(100)
+  cedula              String                @unique @db.VarChar(20)
+  dias_descanso       String?               @default("") @db.VarChar(50)
+  activo              Boolean?              @default(true)
+  citas               citas[]
+  vacunas_aplicadas   vacunas_aplicadas[]
+  vet_atiende_mascota vet_atiende_mascota[]
+}

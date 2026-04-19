@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  # Contenedor de PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    container_name: vet_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: clinica_vet
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  # Contenedor de Redis (Para el caché del Corte 3)
+  redis:
+    image: redis:alpine
+    container_name: vet_redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  pg_data:
