@@ -31,11 +31,8 @@ const PORT = process.env.PORT || 4000;
 // ==========================================
 // ALMACENAMIENTO EN MEMORIA (Para citas)
 // ==========================================
-let citasEnMemoria: any[] = [
-  { id: 1, mascota: "Firulais", fecha: "2026-04-20T10:30", motivo: "Consulta General", estado: "Pendiente" },
-  { id: 2, mascota: "Michi", fecha: "2026-04-20T12:00", motivo: "Revisión Post-operatoria", estado: "Confirmada" }
-];
-let siguienteIdCita = 3;
+let citasEnMemoria: any[] = [];
+let siguienteIdCita = 1;
 
 app.use(cors());
 app.use(express.json());
