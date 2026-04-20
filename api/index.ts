@@ -148,6 +148,115 @@ app.post('/api/vacunas/aplicar', async (req, res) => {
   }
 });
 
+// --- NUEVOS ENDPOINTS PARA EL ADMINISTRADOR ---
+
+// ======================================================================
+// ENDPOINTS DE ADMINISTRADOR (Recuperados)
+// ======================================================================
+
+// 1. Obtener el inventario actual de vacunas (CONEXIÓN REAL A POSTGRESQL)
+app.get('/api/admin/vacunas', async (req, res) => {
+  const adminId = req.headers['x-vet-id'];
+  if (adminId !== 'admin') return res.status(403).json({ error: "No autorizado" });
+
+  try {
+    const inventario = await prisma.inventario_vacunas.findMany();
+    res.json(inventario);
+  } catch (error) {
+    console.error("Error al obtener inventario:", error);
+    res.status(500).json({ error: "Error al obtener el inventario" });
+  }
+});
+
+// 2. Gestionar inventario de vacunas (CONEXIÓN REAL A POSTGRESQL)
+app.post('/api/admin/vacunas', async (req, res) => {
+  const { nombre, cantidad } = req.body;
+  const adminId = req.headers['x-vet-id'];
+  
+  if (adminId !== 'admin') return res.status(403).json({ error: "No autorizado" });
+
+  try {
+    const cantidadNumerica = parseInt(cantidad);
+
+    // 1. Buscamos la vacuna por su nombre exacto
+    const vacunaExistente = await prisma.inventario_vacunas.findFirst({
+      where: { nombre: nombre }
+    });
+
+    if (vacunaExistente) {
+      // 2. Si existe, hacemos el UPDATE sumando al 'stock_actual'
+      const nuevaVacuna = await prisma.inventario_vacunas.update({
+        where: { id: vacunaExistente.id },
+        data: { stock_actual: vacunaExistente.stock_actual + cantidadNumerica }
+      });
+      res.json({ mensaje: `✅ Éxito: Se sumaron ${cantidadNumerica} dosis. El nuevo stock de "${nombre}" es ${nuevaVacuna.stock_actual}.` });
+    } else {
+      res.status(400).json({ error: "Esa vacuna no existe en el catálogo de la base de datos." });
+    }
+  } catch (error) {
+    console.error("Error en BD:", error);
+    res.status(500).json({ error: "Error al actualizar la base de datos" });
+  }
+});
+
+// 3. Crear nuevo usuario
+app.post('/api/admin/usuarios', async (req, res) => {
+  const adminId = req.headers['x-vet-id'];
+  if (adminId !== 'admin') return res.status(403).json({ error: "No autorizado" });
+  res.json({ mensaje: "✅ Usuario simulado creado con éxito." });
+});
+
+// 4. Asignar mascota a veterinario
+app.post('/api/admin/asignar', async (req, res) => {
+  const adminId = req.headers['x-vet-id'];
+  if (adminId !== 'admin') return res.status(403).json({ error: "No autorizado" });
+  res.json({ mensaje: "✅ Mascota asignada con éxito." });
+});
+
+// 5. Agendar cita
+app.post('/api/admin/agendar-cita', async (req, res) => {
+  const { mascota_id, fecha } = req.body;
+  const userId = req.headers['x-vet-id'];
+
+  // Validación de seguridad: Solo Recepción y Admin agendan
+  if (userId !== 'recepcion' && userId !== 'admin') {
+    return res.status(403).json({ error: "No tienes permiso para agendar" });
+  }
+
+  try {
+    // Aquí es donde Prisma guarda en la tabla 'citas'
+    // const nuevaCita = await prisma.citas.create({ 
+    //   data: { mascota_id: parseInt(mascota_id), fecha: new Date(fecha) } 
+    // });
+    
+    res.json({ mensaje: `✅ Cita confirmada para el paciente #${mascota_id} el ${fecha}` });
+  } catch (error) {
+    res.status(500).json({ error: "Error al guardar en la base de datos" });
+  }
+});
+
+// 6. Obtener todas las citas (Para Recepción y Admin)
+app.get('/api/admin/citas', async (req, res) => {
+  const userId = req.headers['x-vet-id'];
+  
+  // Validación de seguridad para Recepción y Admin
+  if (userId !== 'recepcion' && userId !== 'admin') {
+    return res.status(403).json({ error: "Acceso denegado" });
+  }
+
+  try {
+    // Con Prisma real: const citas = await prisma.citas.findMany({ include: { mascota: true }, orderBy: { fecha: 'asc' } });
+    
+    // Ejemplo de respuesta para probar tu Frontend:
+    res.json([
+      { id: 1, mascota: "Firulais", fecha: "2026-04-20T10:30", motivo: "Consulta General", estado: "Pendiente" },
+      { id: 2, mascota: "Michi", fecha: "2026-04-20T12:00", motivo: "Revisión Post-operatoria", estado: "Confirmada" }
+    ]);
+  } catch (error) {
+    res.status(500).json({ error: "Error al recuperar la agenda" });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Servidor API corriendo en http://localhost:${PORT}`);
 });
