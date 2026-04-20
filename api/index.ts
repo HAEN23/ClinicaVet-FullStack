@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { PrismaClient } from './generated/prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { createClient } from 'redis'; // <-- Importamos Redis
@@ -20,7 +20,7 @@ const prisma = new PrismaClient({ adapter });
 // CONFIGURACIÓN DE REDIS
 // ==========================================
 const redisClient = createClient({
-  url: 'redis://localhost:6379' // El puerto donde levantamos nuestro Docker
+  url: process.env.REDIS_URL || 'redis://localhost:6379' 
 });
 
 redisClient.on('error', (err) => console.log('Redis Client Error:', err));
@@ -53,7 +53,7 @@ app.get('/api/mascotas/buscar', async (req, res) => {
     // Ejecutamos todo dentro de una TRANSACCIÓN
     // Esto garantiza que la regla RLS solo aplique a esta consulta exacta
     // y evita la fuga de datos entre conexiones (Pregunta 2 del reporte)
-    const mascotas = await prisma.$transaction(async (tx) => {
+    const mascotas = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       
       // 1. Nos "ponemos el gafete" del rol correcto
       if (vetId === 'admin') {

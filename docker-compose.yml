@@ -1,7 +1,5 @@
-version: '3.8'
-
 services:
-  # Contenedor de PostgreSQL
+  # 1. Base de Datos
   postgres:
     image: postgres:15-alpine
     container_name: vet_db
@@ -14,12 +12,37 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
 
-  # Contenedor de Redis (Para el caché del Corte 3)
+  # 2. Caché
   redis:
     image: redis:alpine
     container_name: vet_redis
     ports:
       - "6379:6379"
+
+  # 3. Tu API en Node.js
+  api:
+    build: ./api
+    container_name: vet_api
+    ports:
+      - "4000:4000"
+    environment:
+      # Se conecta usando el nombre del contenedor interno (vet_db) y el puerto nativo (5432)
+      DATABASE_URL: "postgresql://postgres:secretpassword@vet_db:5432/clinica_vet?schema=public"
+      # Se conecta usando el nombre del contenedor de Redis
+      REDIS_URL: "redis://vet_redis:6379"
+    depends_on:
+      - postgres
+      - redis
+
+  # 4. Tu Frontend en Next.js
+  frontend:
+    build: ./frontend
+    container_name: vet_frontend
+    # Mapeamos el puerto interno 3000 de Next.js al 3002 en tu computadora
+    ports:
+      - "3002:3000"
+    depends_on:
+      - api
 
 volumes:
   pg_data:
