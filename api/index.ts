@@ -32,28 +32,6 @@ app.use(cors());
 app.use(express.json());
 
 // ==========================================
-// MIDDLEWARE DE RLS (CORREGIDO PARA POSTGRESQL)
-// ==========================================
-app.use(async (req, res, next) => {
-  const vetId = req.headers['x-vet-id'] as string;
-  
-  if (vetId && vetId !== 'admin' && vetId !== 'recepcion') {
-    try {
-      // Usamos la función set_config que SÍ permite parametrización segura ($1)
-      await prisma.$executeRaw`SELECT set_config('app.current_vet_id', ${vetId}, false);`;
-    } catch (error) {
-      console.error("Error configurando RLS:", error);
-    }
-  } else {
-    try { 
-      // Limpiamos la variable de sesión
-      await prisma.$executeRaw`SELECT set_config('app.current_vet_id', '', false);`; 
-    } catch(e){}
-  }
-  next();
-});
-
-// ==========================================
 // ENDPOINTS ANTERIORES
 // ==========================================
 app.get('/api/health', (req, res) => res.json({ status: 'API OK' }));
@@ -70,12 +48,35 @@ app.get('/api/veterinarios', async (req, res) => {
 app.get('/api/mascotas/buscar', async (req, res) => {
   try {
     const termino = req.query.q as string || '';
-    const mascotas = await prisma.mascotas.findMany({
-      where: { nombre: { contains: termino, mode: 'insensitive' } },
-      include: { duenos: true }
+    const vetId = req.headers['x-vet-id'] as string;
+
+    // Ejecutamos todo dentro de una TRANSACCIÓN
+    // Esto garantiza que la regla RLS solo aplique a esta consulta exacta
+    // y evita la fuga de datos entre conexiones (Pregunta 2 del reporte)
+    const mascotas = await prisma.$transaction(async (tx) => {
+      
+      // 1. Nos "ponemos el gafete" del rol correcto
+      if (vetId === 'admin') {
+        await tx.$executeRawUnsafe(`SET LOCAL ROLE rol_admin;`);
+      } else if (vetId === 'recepcion') {
+        await tx.$executeRawUnsafe(`SET LOCAL ROLE rol_recepcion;`);
+      } else if (vetId) {
+        // Es un veterinario
+        await tx.$executeRawUnsafe(`SET LOCAL ROLE rol_veterinario;`);
+        // Le decimos qué veterinario es
+        await tx.$executeRaw`SELECT set_config('app.current_vet_id', ${vetId}, true);`;
+      }
+
+      // 2. Hacemos la búsqueda. Ahora PostgreSQL SÍ filtrará los datos.
+      return await tx.mascotas.findMany({
+        where: { nombre: { contains: termino, mode: 'insensitive' } },
+        include: { duenos: true }
+      });
     });
+
     res.json(mascotas);
   } catch (error) {
+    console.error("Error en búsqueda:", error);
     res.status(500).json({ error: 'Error' });
   }
 });
