@@ -219,14 +219,14 @@ app.post('/api/admin/asignar', async (req, res) => {
   res.json({ mensaje: "✅ Mascota asignada con éxito." });
 });
 
-// 5. Agendar cita
+// 5. Agendar cita (RESTRINGIDO A RECEPCIÓN Y VETERINARIOS)
 app.post('/api/admin/agendar-cita', async (req, res) => {
   const { mascota_id, fecha } = req.body;
   const userId = req.headers['x-vet-id'];
 
-  // Validación de seguridad: Solo Recepción y Admin agendan
-  if (userId !== 'recepcion' && userId !== 'admin') {
-    return res.status(403).json({ error: "No tienes permiso para agendar" });
+  // Validación RBAC Estricta: El admin NO puede agendar citas.
+  if (userId === 'admin') {
+    return res.status(403).json({ error: "Rol no autorizado. Solo Recepción o Veterinarios pueden agendar citas." });
   }
 
   try {
@@ -236,7 +236,7 @@ app.post('/api/admin/agendar-cita', async (req, res) => {
       mascota: `Mascota #${mascota_id}`,
       fecha: fecha,
       motivo: "Cita Agendada",
-      estado: "Pendiente"
+      estado: "Pendiente" // Estado inicial
     };
     
     // Agregar a la lista de citas en memoria
@@ -248,21 +248,50 @@ app.post('/api/admin/agendar-cita', async (req, res) => {
   }
 });
 
-// 6. Obtener todas las citas (Para Recepción y Admin)
+// 6. Obtener todas las citas (Para Recepción y Admin) - MODIFICADO PARA FILTRAR
 app.get('/api/admin/citas', async (req, res) => {
   const userId = req.headers['x-vet-id'];
   
-  // Validación de seguridad para Recepción y Admin
+  // Validación de seguridad para Recepción y Admin (El Admin sí puede VER las citas, pero no crearlas)
   if (userId !== 'recepcion' && userId !== 'admin') {
     return res.status(403).json({ error: "Acceso denegado" });
   }
 
   try {
-    // Devolver las citas almacenadas en memoria (ordenadas por fecha)
-    const citasOrdenadas = citasEnMemoria.sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+    // FILTRAR: Solo devolvemos las citas que tengan el estado "Pendiente"
+    const citasPendientes = citasEnMemoria.filter((cita) => cita.estado === "Pendiente");
+
+    // Ordenar por fecha y enviarlas
+    const citasOrdenadas = citasPendientes.sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
     res.json(citasOrdenadas);
   } catch (error) {
     res.status(500).json({ error: "Error al recuperar la agenda" });
+  }
+});
+
+// 7. Confirmar llegada de paciente (RESTRINGIDO SOLO A RECEPCIÓN)
+app.post('/api/admin/confirmar-llegada', async (req, res) => {
+  const { cita_id } = req.body;
+  const userId = req.headers['x-vet-id'];
+
+  // Validación RBAC Estricta: SOLO Recepción confirma llegadas.
+  if (userId !== 'recepcion') {
+    return res.status(403).json({ error: "Operación denegada. Solo el departamento de Recepción puede confirmar llegadas." });
+  }
+
+  try {
+    // Buscamos la cita específica en nuestra memoria
+    const citaIndex = citasEnMemoria.findIndex(c => c.id === cita_id);
+    
+    if (citaIndex !== -1) {
+      // Cambiamos su estado a "Confirmada" para que el GET ya no la envíe
+      citasEnMemoria[citaIndex].estado = "Confirmada";
+      res.json({ mensaje: "✅ Llegada confirmada en el servidor." });
+    } else {
+      res.status(404).json({ error: "Cita no encontrada" });
+    }
+  } catch (error) {
+    res.status(500).json({ error: "Error en el servidor al confirmar llegada" });
   }
 });
 

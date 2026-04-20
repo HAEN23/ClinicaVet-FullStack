@@ -13,6 +13,11 @@ export default function BuscadorMascotas() {
   const [formData, setFormData] = useState({ nombre: "", cedula: "", vetIdAsignar: "", mascotaIdAsignar: "", nombreVacuna: "", cantidadVacuna: "", mascotaIdCita: "", fechaCita: "" });
   const [inventario, setInventario] = useState([]);
   const [citas, setCitas] = useState<any[]>([]);
+  
+  // NUEVOS ESTADOS PARA LA MEJORA DE CITAS DEL VETERINARIO
+  const [misPacientes, setMisPacientes] = useState<any[]>([]);
+  const [modoCitaVet, setModoCitaVet] = useState<"mis_pacientes" | "nuevo">("mis_pacientes");
+  
   const router = useRouter();
 
   // Al cargar la página, verificamos quién inició sesión
@@ -27,7 +32,6 @@ export default function BuscadorMascotas() {
 
   // Cargar el inventario automáticamente cuando el Admin entra
   useEffect(() => {
-    // Solo ejecuta si vetId existe y es admin
     if (vetId && vetId.toLowerCase() === "admin") {
       const obtenerStock = async () => {
         try {
@@ -36,7 +40,6 @@ export default function BuscadorMascotas() {
             headers: { "x-vet-id": "admin" }
           });
 
-          // Verificamos si el backend respondió bien antes de procesar el JSON
           if (!res.ok) {
             throw new Error(`El backend no encontró la ruta. Código: ${res.status}`);
           }
@@ -56,6 +59,27 @@ export default function BuscadorMascotas() {
   useEffect(() => {
     if (vetId === "recepcion" || vetId === "admin") {
       cargarCitas();
+    }
+  }, [vetId]);
+
+  // NUEVO: Cargar automáticamente "Mis Pacientes" si el rol es Veterinario
+  useEffect(() => {
+    if (vetId && vetId !== "admin" && vetId !== "recepcion") {
+      const cargarMisPacientes = async () => {
+        try {
+          // Al enviar una búsqueda vacía, el RLS de Postgres nos devolverá SOLO lo que este veterinario atiende
+          const res = await fetch(`http://localhost:4000/api/mascotas/buscar?q=`, {
+            headers: { "x-vet-id": vetId }
+          });
+          if (res.ok) {
+            const datos = await res.json();
+            setMisPacientes(datos);
+          }
+        } catch (err) {
+          console.error("Error al cargar lista de pacientes", err);
+        }
+      };
+      cargarMisPacientes();
     }
   }, [vetId]);
 
@@ -105,14 +129,13 @@ export default function BuscadorMascotas() {
     }
   };
 
-  // Función para enviar los datos a la API
   const ejecutarAccionAdmin = async (ruta: string, cuerpo: object) => {
     try {
       const res = await fetch(`http://localhost:4000/api/admin/${ruta}`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json", 
-          "x-vet-id": vetId // Aquí viaja 'recepcion' o 'admin'
+          "x-vet-id": vetId 
         },
         body: JSON.stringify(cuerpo)
       });
@@ -123,7 +146,6 @@ export default function BuscadorMascotas() {
       alert(data.mensaje);
       setModalAbierto(null);
       
-      // Si agendó una cita, recarga la lista
       if (ruta === "agendar-cita") {
         cargarCitas();
       }
@@ -132,11 +154,33 @@ export default function BuscadorMascotas() {
     }
   };
 
+  const confirmarLlegada = async (citaId: number) => {
+    try {
+      const res = await fetch(`http://localhost:4000/api/admin/confirmar-llegada`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json", 
+          "x-vet-id": vetId 
+        },
+        body: JSON.stringify({ cita_id: citaId })
+      });
+
+      if (res.ok) {
+        setCitas(prevCitas => prevCitas.filter(cita => cita.id !== citaId));
+        alert("✅ El paciente ha ingresado a la clínica.");
+      } else {
+        alert("Error al procesar la llegada en el servidor.");
+      }
+    } catch (err) {
+      alert("Error de conexión al confirmar llegada.");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-4xl mx-auto">
         
-        {/* Encabezado y Botón de Salida */}
+        {/* Encabezado y Botones Principales */}
         <div className="flex justify-between items-center mb-8 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Buscador de Pacientes</h1>
@@ -145,7 +189,6 @@ export default function BuscadorMascotas() {
             </p>
           </div>
           <div>
-            {/* Solo mostramos "Ver Vacunación" si NO es recepción */}
             {vetId.toLowerCase() !== "recepcion" && (
               <button 
                 onClick={() => router.push("/vacunation")}
@@ -154,8 +197,8 @@ export default function BuscadorMascotas() {
                 Ver Vacunación
               </button>
             )}
-            {/* Botón exclusivo para Recepción o Admin */}
-            {(vetId.toLowerCase() === "recepcion" || vetId.toLowerCase() === "admin") && (
+            
+            {vetId.toLowerCase() !== "admin" && (
               <button 
                 onClick={() => setModalAbierto("cita")}
                 className="text-sm text-blue-600 hover:text-blue-800 font-medium px-4 py-2 border border-blue-200 rounded-md hover:bg-blue-50 transition-colors mr-2"
@@ -163,6 +206,7 @@ export default function BuscadorMascotas() {
                 📅 Agendar Cita
               </button>
             )}
+            
             <button 
               onClick={cerrarSesion}
               className="text-sm text-red-600 hover:text-red-800 font-medium px-4 py-2 border border-red-200 rounded-md hover:bg-red-50 transition-colors"
@@ -172,7 +216,7 @@ export default function BuscadorMascotas() {
           </div>
         </div>
 
-        {/* --- PASO NUEVO: PANEL EXCLUSIVO PARA ADMINISTRADORES --- */}
+        {/* --- PANEL EXCLUSIVO PARA ADMINISTRADORES --- */}
         {vetId.toLowerCase() === "admin" && (
           <div className="mb-8 p-6 bg-indigo-50 border border-indigo-200 rounded-lg shadow-sm">
             <h2 className="text-xl font-bold text-indigo-900 mb-4 flex items-center gap-2">
@@ -189,11 +233,8 @@ export default function BuscadorMascotas() {
                 💉 Gestionar Vacunas
               </button>
             </div>
-
-
           </div>
         )}
-        {/* --- FIN DEL PASO NUEVO --- */}
 
         {/* Formulario de Búsqueda */}
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-8">
@@ -216,7 +257,7 @@ export default function BuscadorMascotas() {
           {error && <p className="mt-3 text-sm text-red-600 font-medium">{error}</p>}
         </div>
 
-        {/* --- SECCIÓN DE PRÓXIMAS CITAS (Visible para Recepción y Admin) --- */}
+        {/* --- SECCIÓN DE PRÓXIMAS CITAS (Recepción y Admin) --- */}
         {(vetId === "recepcion" || vetId === "admin") && (
           <div className="mt-10 bg-white p-6 rounded-xl border border-blue-100 shadow-sm">
             <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
@@ -228,16 +269,22 @@ export default function BuscadorMascotas() {
                   <div className="flex items-center gap-4">
                     <div className="bg-white p-2 rounded shadow-sm text-center w-20">
                       <p className="text-xs font-bold text-blue-600">HORA</p>
-                      <p className="text-lg font-black text-gray-900">{cita.fecha.split('T')[1] || "10:00"}</p>
+                      <p className="text-lg font-black text-gray-900">{cita.fecha ? cita.fecha.split('T')[1] : "10:00"}</p>
                     </div>
                     <div>
                       <p className="font-bold text-gray-900">Paciente: {cita.mascota}</p>
                       <p className="text-xs text-gray-500 uppercase tracking-wider">{cita.motivo}</p>
                     </div>
                   </div>
-                  <button className="text-xs font-bold text-blue-700 bg-white border border-blue-200 px-3 py-1 rounded-md hover:bg-blue-50">
-                    Confirmar Llegada
-                  </button>
+                  
+                  {vetId.toLowerCase() === "recepcion" && (
+                    <button 
+                      onClick={() => confirmarLlegada(cita.id)}
+                      className="text-xs font-bold text-emerald-600 bg-white border border-emerald-200 px-3 py-1 rounded-md hover:bg-emerald-50 transition-colors"
+                    >
+                      Confirmar Llegada
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -246,7 +293,7 @@ export default function BuscadorMascotas() {
 
         {/* Tabla de Resultados */}
         {mascotas.length > 0 && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mt-8">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -272,7 +319,7 @@ export default function BuscadorMascotas() {
       </div>
 
       {/* ========================================================= */}
-      {/* 🚀 MODAL GLOBAL (Debe ir hasta abajo, libre de candados)  */}
+      {/* 🚀 MODAL GLOBAL */}
       {/* ========================================================= */}
       {modalAbierto && (
         <div className="fixed inset-0 bg-gray-100 bg-opacity-95 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -295,9 +342,9 @@ export default function BuscadorMascotas() {
               
               <div className="space-y-5">
                 
-                {/* --- FORMULARIO DE USUARIO --- */}
                 {modalAbierto === "usuario" && (
                   <>
+                    {/* ... Formulario Usuario ... */}
                     <div>
                       <label className="block text-sm font-bold text-gray-900 mb-1">Nombre del Veterinario</label>
                       <input type="text" placeholder="Ej. Juan Pérez" className="w-full p-3 border rounded-lg text-gray-900 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none" onChange={(e) => setFormData({...formData, nombre: e.target.value})} />
@@ -310,9 +357,9 @@ export default function BuscadorMascotas() {
                   </>
                 )}
 
-                {/* --- FORMULARIO DE ASIGNACIÓN --- */}
                 {modalAbierto === "asignar" && (
                   <>
+                    {/* ... Formulario Asignar ... */}
                     <div>
                       <label className="block text-sm font-bold text-gray-900 mb-1">ID del Veterinario</label>
                       <input type="number" className="w-full p-3 border rounded-lg text-gray-900 bg-gray-50" onChange={(e) => setFormData({...formData, vetIdAsignar: e.target.value})} />
@@ -325,9 +372,9 @@ export default function BuscadorMascotas() {
                   </>
                 )}
 
-                {/* --- FORMULARIO DE VACUNAS --- */}
                 {modalAbierto === "vacunas" && (
                   <>
+                    {/* ... Formulario Vacunas ... */}
                     <div>
                       <label className="block text-sm font-bold text-gray-900 mb-1">Nombre de la Vacuna</label>
                       <select 
@@ -362,22 +409,69 @@ export default function BuscadorMascotas() {
                   </>
                 )}
 
-                {/* --- FORMULARIO DE CITAS (Para Recepción y Admin) --- */}
+                {/* --- NUEVO FORMULARIO INTELIGENTE DE CITAS --- */}
                 {modalAbierto === "cita" && (
                   <>
+                    {vetId === "recepcion" || vetId === "admin" ? (
+                      // 1. VISTA DE RECEPCIÓN: Ingreso de ID Manual (Porque ellos agendan para todos)
+                      <div>
+                        <label className="block text-sm font-bold text-gray-900 mb-1">ID de la Mascota</label>
+                        <input type="number" placeholder="Ej. 5" className="w-full p-3 border rounded-lg text-gray-900 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500" 
+                          onChange={(e) => setFormData({...formData, mascotaIdCita: e.target.value})} />
+                      </div>
+                    ) : (
+                      // 2. VISTA DE VETERINARIO: Selector inteligente y Pestaña de Nuevos
+                      <>
+                        <div className="flex gap-2 mb-5 bg-gray-100 p-1 rounded-lg">
+                          <button 
+                            onClick={() => setModoCitaVet("mis_pacientes")}
+                            className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${modoCitaVet === 'mis_pacientes' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                          >
+                            🐾 Mis Pacientes
+                          </button>
+                          <button 
+                            onClick={() => setModoCitaVet("nuevo")}
+                            className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${modoCitaVet === 'nuevo' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                          >
+                            ➕ Nuevo Paciente
+                          </button>
+                        </div>
+
+                        {modoCitaVet === "mis_pacientes" ? (
+                          <div>
+                            <label className="block text-sm font-bold text-gray-900 mb-1">Selecciona de tu Lista</label>
+                            <select 
+                              className="w-full p-3 border rounded-lg text-gray-900 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500"
+                              onChange={(e) => setFormData({...formData, mascotaIdCita: e.target.value})}
+                              defaultValue=""
+                            >
+                              <option value="" disabled>-- Elige un paciente --</option>
+                              {misPacientes.length === 0 && <option value="" disabled>Aún no tienes pacientes asignados</option>}
+                              {misPacientes.map((p: any) => (
+                                <option key={p.id} value={p.id}>{p.nombre} (Especie: {p.especie})</option>
+                              ))}
+                            </select>
+                          </div>
+                        ) : (
+                          <div>
+                            <label className="block text-sm font-bold text-gray-900 mb-1">ID del Nuevo Paciente</label>
+                            <input type="number" placeholder="Ej. 8" className="w-full p-3 border rounded-lg text-gray-900 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500" 
+                              onChange={(e) => setFormData({...formData, mascotaIdCita: e.target.value})} />
+                            <p className="text-xs text-gray-500 mt-2">Ingresa el ID del paciente que aún no forma parte de tu cartera de clientes.</p>
+                          </div>
+                        )}
+                      </>
+                    )}
+
                     <div>
-                      <label className="block text-sm font-bold text-gray-900 mb-1">ID de la Mascota</label>
-                      <input type="number" placeholder="Ej. 5" className="w-full p-3 border rounded-lg text-gray-900 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500" 
-                        onChange={(e) => setFormData({...formData, mascotaIdCita: e.target.value})} />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-gray-900 mb-1">Fecha y Hora</label>
+                      <label className="block text-sm font-bold text-gray-900 mt-4 mb-1">Fecha y Hora</label>
                       <input type="datetime-local" className="w-full p-3 border rounded-lg text-gray-900 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500" 
                         onChange={(e) => setFormData({...formData, fechaCita: e.target.value})} />
                     </div>
+                    
                     <button 
                       onClick={() => ejecutarAccionAdmin("agendar-cita", { mascota_id: formData.mascotaIdCita, fecha: formData.fechaCita })} 
-                      className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 shadow-lg"
+                      className="w-full mt-4 bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 shadow-lg"
                     >
                       Confirmar Cita
                     </button>
