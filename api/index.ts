@@ -28,6 +28,15 @@ redisClient.connect().catch(console.error);
 
 const PORT = process.env.PORT || 4000;
 
+// ==========================================
+// ALMACENAMIENTO EN MEMORIA (Para citas)
+// ==========================================
+let citasEnMemoria: any[] = [
+  { id: 1, mascota: "Firulais", fecha: "2026-04-20T10:30", motivo: "Consulta General", estado: "Pendiente" },
+  { id: 2, mascota: "Michi", fecha: "2026-04-20T12:00", motivo: "Revisión Post-operatoria", estado: "Confirmada" }
+];
+let siguienteIdCita = 3;
+
 app.use(cors());
 app.use(express.json());
 
@@ -224,10 +233,17 @@ app.post('/api/admin/agendar-cita', async (req, res) => {
   }
 
   try {
-    // Aquí es donde Prisma guarda en la tabla 'citas'
-    // const nuevaCita = await prisma.citas.create({ 
-    //   data: { mascota_id: parseInt(mascota_id), fecha: new Date(fecha) } 
-    // });
+    // Crear nueva cita en memoria
+    const nuevaCita = {
+      id: siguienteIdCita++,
+      mascota: `Mascota #${mascota_id}`,
+      fecha: fecha,
+      motivo: "Cita Agendada",
+      estado: "Pendiente"
+    };
+    
+    // Agregar a la lista de citas en memoria
+    citasEnMemoria.push(nuevaCita);
     
     res.json({ mensaje: `✅ Cita confirmada para el paciente #${mascota_id} el ${fecha}` });
   } catch (error) {
@@ -245,13 +261,9 @@ app.get('/api/admin/citas', async (req, res) => {
   }
 
   try {
-    // Con Prisma real: const citas = await prisma.citas.findMany({ include: { mascota: true }, orderBy: { fecha: 'asc' } });
-    
-    // Ejemplo de respuesta para probar tu Frontend:
-    res.json([
-      { id: 1, mascota: "Firulais", fecha: "2026-04-20T10:30", motivo: "Consulta General", estado: "Pendiente" },
-      { id: 2, mascota: "Michi", fecha: "2026-04-20T12:00", motivo: "Revisión Post-operatoria", estado: "Confirmada" }
-    ]);
+    // Devolver las citas almacenadas en memoria (ordenadas por fecha)
+    const citasOrdenadas = citasEnMemoria.sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+    res.json(citasOrdenadas);
   } catch (error) {
     res.status(500).json({ error: "Error al recuperar la agenda" });
   }

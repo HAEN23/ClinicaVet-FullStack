@@ -122,6 +122,11 @@ export default function BuscadorMascotas() {
       const data = await res.json();
       alert(data.mensaje);
       setModalAbierto(null);
+      
+      // Si agendó una cita, recarga la lista
+      if (ruta === "agendar-cita") {
+        cargarCitas();
+      }
     } catch (err) {
       alert("No se pudo agendar la cita. Revisa la conexión.");
     }
