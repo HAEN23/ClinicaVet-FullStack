@@ -3,7 +3,7 @@
 -- Trigger requerido: trg_historial_cita 
 -- ==========================================================
 
--- 1. Primero creamos la función que ejecutará el trigger
+
 CREATE OR REPLACE FUNCTION fn_trg_historial_cita()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -18,10 +18,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 2. Eliminamos el trigger si existe para evitar errores al recrearlo
+
 DROP TRIGGER IF EXISTS trg_historial_cita ON citas;
 
--- 3. Vinculamos el trigger a la tabla citas
+
 CREATE TRIGGER trg_historial_cita
 AFTER INSERT ON citas
 FOR EACH ROW

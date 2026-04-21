@@ -4,10 +4,10 @@ ALTER TABLE vacunas_aplicadas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE citas ENABLE ROW LEVEL SECURITY;
 
 -- ==========================================
--- 1. POLÍTICAS PARA LA TABLA 'mascotas' [cite: 62]
+-- 1. POLÍTICAS PARA LA TABLA 'mascotas' 
 -- ==========================================
 
--- Admin y Recepción ven todas las mascotas[cite: 62].
+-- Admin y Recepción ven todas las mascotas
 CREATE POLICY mascotas_ver_todo ON mascotas
     FOR SELECT USING (current_role IN ('rol_admin', 'rol_recepcion'));
 
@@ -23,10 +23,10 @@ CREATE POLICY mascotas_vet_solo_suyas ON mascotas
     );
 
 -- ==========================================
--- 2. POLÍTICAS PARA LA TABLA 'vacunas_aplicadas' [cite: 63]
+-- 2. POLÍTICAS PARA LA TABLA 'vacunas_aplicadas' 
 -- ==========================================
 
--- Admin ve todo[cite: 64]. (Recepción ya está bloqueada por el REVOKE previo) [cite: 63].
+-- Admin ve todo[cite: 64]. (Recepción ya está bloqueada por el REVOKE) 
 CREATE POLICY vacunas_ver_todo ON vacunas_aplicadas
     FOR SELECT USING (current_role = 'rol_admin');
 
@@ -42,10 +42,10 @@ CREATE POLICY vacunas_vet_solo_suyas ON vacunas_aplicadas
     );
 
 -- ==========================================
--- 3. POLÍTICAS PARA LA TABLA 'citas' [cite: 65]
+-- 3. POLÍTICAS PARA LA TABLA 'citas' 
 -- ==========================================
 
--- Admin y Recepción ven todas las citas[cite: 65].
+-- Admin y Recepción ven todas las citas.
 CREATE POLICY citas_ver_todo ON citas
     FOR SELECT USING (current_role IN ('rol_admin', 'rol_recepcion'));
 

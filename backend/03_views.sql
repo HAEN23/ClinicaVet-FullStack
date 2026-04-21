@@ -4,21 +4,21 @@
 -- Vista: v_mascotas_vacunacion_pendiente 
 -- ==========================================================
 
--- 1. Función para calcular el total facturado (Citas completadas + Vacunas)
+
 CREATE OR REPLACE FUNCTION fn_total_facturado(p_mascota_id INT, p_anio INT)
 RETURNS NUMERIC AS $$
 DECLARE
     v_total_citas NUMERIC;
     v_total_vacunas NUMERIC;
 BEGIN
-    -- Sumar el costo de las citas marcadas como COMPLETADAS en ese año
+    
     SELECT COALESCE(SUM(costo), 0) INTO v_total_citas
     FROM citas
     WHERE mascota_id = p_mascota_id
       AND estado = 'COMPLETADA'
       AND EXTRACT(YEAR FROM fecha_hora) = p_anio;
 
-    -- Sumar el costo cobrado de las vacunas aplicadas en ese año
+    
     SELECT COALESCE(SUM(costo_cobrado), 0) INTO v_total_vacunas
     FROM vacunas_aplicadas
     WHERE mascota_id = p_mascota_id
@@ -28,8 +28,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 2. Vista de vacunación pendiente
--- Esta es la consulta más pesada del sistema y la que deberás cachear con Redis[cite: 85].
+
 CREATE OR REPLACE VIEW v_mascotas_vacunacion_pendiente AS
 SELECT 
     m.id AS mascota_id,

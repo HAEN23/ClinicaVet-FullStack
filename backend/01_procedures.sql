@@ -13,8 +13,7 @@ CREATE OR REPLACE PROCEDURE sp_agendar_cita(
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    -- Insertamos la cita con estado inicial 'AGENDADA'
-    -- El costo se dejará en NULL hasta que la cita se complete.
+    
     INSERT INTO citas (mascota_id, veterinario_id, fecha_hora, motivo, estado)
     VALUES (p_mascota_id, p_veterinario_id, p_fecha_hora, p_motivo, 'AGENDADA')
     RETURNING id INTO p_cita_id;
